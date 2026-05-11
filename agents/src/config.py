@@ -19,34 +19,59 @@ MANTLE_RPC_URL = os.environ.get("MANTLE_RPC_URL", MANTLE_RPC_MAINNET)
 DECISION_LOG_ADDRESS   = os.environ.get("DECISION_LOG_ADDRESS",   "0x0000000000000000000000000000000000000000")
 VAULT_FACTORY_ADDRESS  = os.environ.get("VAULT_FACTORY_ADDRESS",  "0x0000000000000000000000000000000000000000")
 
-# ── Mantle ecosystem protocol addresses ──────────────────────────────────────
+# ── 代币地址（Mantle Mainnet, Chain ID 5000）────────────────────────────────
 
-# Tokens
-USDC_ADDRESS  = "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9"
-METH_ADDRESS  = "0xcDA86A272531e8640cD7F1a92c01839911B90bb0"
-USDY_ADDRESS  = "0x5bE26527e817998A7206475496fDE1E68957c5A6"
-FBTC_ADDRESS  = "0xC96dE26018A54D51c097160568752c4E3BD6C364"
-WETH_ADDRESS  = "0xdEAddEaDdeadDEadDEADDEAddEADDEAddead1111"
-MNT_ADDRESS   = "0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8"
+USDC_ADDRESS  = "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9"  # Bridged USDC
+METH_ADDRESS  = "0xcDA86A272531e8640cD7F1a92c01839911B90bb0"  # mETH
+WETH_ADDRESS  = "0xdEAddEaDdeadDEadDEADDEAddEADDEAddead1111"  # WETH
+MNT_ADDRESS   = "0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8"  # MNT
+USDY_ADDRESS  = "0x5bE26527e817998A7206475496fDE1E68957c5A6"  # USDY (Ondo)
+FBTC_ADDRESS  = "0xC96dE26018A54D51c097160568752c4E3BD6C364"  # fBTC (Function)
+USDT_ADDRESS  = "0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE"  # USDT
 
 # xStocks tokens (via BackedFi + xStocks)
-TSLA_X_ADDRESS = "0x..."   # TODO: fill from xStocks deployment
-NVDA_X_ADDRESS = "0x..."
-AAPL_X_ADDRESS = "0x..."
-SPY_X_ADDRESS  = "0x..."
-QQQ_X_ADDRESS  = "0x..."
+# TODO: fill from xStocks official page https://xstocks.com/tokens
+# or search Mantle Explorer https://explorer.mantle.xyz/tokens-erc20
+XSTOCKS_TOKENS = {
+    "TSLAx": "0x...",   # TODO: search Mantle Explorer for TSLAx
+    "NVDAx": "0x...",   # TODO: search Mantle Explorer for NVDAx
+    "AAPLx": "0x...",   # TODO: search Mantle Explorer for AAPLx
+    "SPYx":  "0x...",   # TODO: search Mantle Explorer for SPYx
+    "QQQx":  "0x...",   # TODO: search Mantle Explorer for QQQx
+}
 
-# Protocol contracts
-MANTLE_LSP_ADDRESS           = "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f"
-FLUXION_ROUTER_ADDRESS       = "0x..."   # TODO: fill from Fluxion docs
-FLUXION_RFQ_ADDRESS          = "0x..."   # Atomic RFQ contract
-MERCHANT_MOE_ROUTER_ADDRESS  = "0x..."   # LBRouter
-AGNI_ROUTER_ADDRESS          = "0x..."   # Agni Finance AMM router
-FUNCTION_FBTC_VAULT_ADDRESS  = "0x..."   # Function (fBTC vault)
+# Legacy aliases for backward compatibility
+TSLA_X_ADDRESS = XSTOCKS_TOKENS["TSLAx"]
+NVDA_X_ADDRESS = XSTOCKS_TOKENS["NVDAx"]
+AAPL_X_ADDRESS = XSTOCKS_TOKENS["AAPLx"]
+SPY_X_ADDRESS  = XSTOCKS_TOKENS["SPYx"]
+QQQ_X_ADDRESS  = XSTOCKS_TOKENS["QQQx"]
 
-# Oracles
-PYTH_MANTLE_ADDRESS  = "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729"
-USDY_ORACLE_ADDRESS  = "0x..."   # Ondo yield oracle
+# ── Mantle LSP（mETH 质押协议）────────────────────────────────────────────────
+
+MANTLE_LSP_ADDRESS = "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f"
+
+# ── Protocol contracts ───────────────────────────────────────────────────────
+
+# Merchant Moe LBRouter v2.2: https://docs.merchantmoe.com/contracts
+# 预期格式：0x...（从 Mantle Explorer 搜索 "LBRouter"）
+MERCHANT_MOE_LB_ROUTER = "TODO: https://explorer.mantle.xyz → search LBRouter"
+MERCHANT_MOE_ROUTER_ADDRESS = MERCHANT_MOE_LB_ROUTER
+
+# Fluxion Router: https://docs.fluxion.io/contracts
+FLUXION_ROUTER_ADDRESS = "TODO: https://docs.fluxion.io"
+FLUXION_RFQ_ADDRESS    = "TODO: https://docs.fluxion.io"  # Atomic RFQ contract
+
+# Function (fBTC) Vault: https://docs.functionbtc.io
+FUNCTION_FBTC_VAULT_ADDRESS = "TODO: https://docs.functionbtc.io"
+
+# Agni Finance Router: https://docs.agni.finance
+AGNI_ROUTER_ADDRESS = "TODO: https://docs.agni.finance"
+
+# ── Pyth Network Oracle（Mantle 主网）─────────────────────────────────────────
+
+PYTH_MANTLE_ADDRESS = "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729"
+USDY_ORACLE_ADDRESS = "0x..."   # TODO: Ondo yield oracle
 
 # ── ABIs (minimal — full ABIs in agents/src/abis/) ──────────────────────────
 
@@ -122,8 +147,8 @@ PYTH_PRICE_IDS = {
     "TSLAx": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
     "NVDAx": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",  # TODO verify
     "AAPLx": "0x49f6b65cb1de6b10468b27191e46d58d72c03f7be5a573c47e3a2ac7e2e9d28a",
-    "SPYx":  "0x0000000000000000000000000000000000000000000000000000000000000000",  # TODO verify
-    "QQQx":  "0x0000000000000000000000000000000000000000000000000000000000000000",  # TODO verify
+    "SPYx":  "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c1c76c4a",
+    "QQQx":  "0x28ce9e26b83c33e77f7e98615c6e4e9a4ea0ec38dc4e1fbb8de4c432ee36b3fd",
     "ETH":   "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
     "BTC":   "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
 }

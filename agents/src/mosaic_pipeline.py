@@ -114,9 +114,17 @@ class ScribeResult:
 # by the agent automatically when their SKILL.md trigger conditions match.
 # For local/CI use, we implement them as direct Python function calls.
 
+sys.path.insert(0, os.path.dirname(__file__))
+
+# Import actual skill implementations
+from skills.macro_sentinel.scripts.fetch_macro     import fetch_macro_signal
+from skills.reporting_scribe.scripts.write_record  import write_record
+from skills.risk_guardian.scripts.assess_risk       import assess_risk
+from skills.allocator.scripts.compute_allocation    import compute_allocation
+from skills.execution_router.scripts.execute_rebalance import execute_rebalance
+
 async def invoke_macro_sentinel(vault_address: str, prev_score: int) -> MacroSignal:
     """Invoke macro-sentinel skill."""
-    from skills.macro_sentinel import fetch_macro_signal
     return await fetch_macro_signal(vault_address, prev_score)
 
 async def invoke_allocator(
@@ -125,7 +133,6 @@ async def invoke_allocator(
     current: Allocation
 ) -> tuple[Allocation, str, float]:
     """Invoke allocator skill. Returns (allocation, reasoning, confidence)."""
-    from skills.allocator import compute_allocation
     return await compute_allocation(macro, profile, current)
 
 async def invoke_execution_router(
@@ -135,7 +142,6 @@ async def invoke_execution_router(
     vault_tvl_usd: float
 ) -> ExecutionResult:
     """Invoke execution-router skill."""
-    from skills.execution_router import execute_rebalance
     return await execute_rebalance(vault_address, current, target, vault_tvl_usd)
 
 async def invoke_risk_guardian(
@@ -147,7 +153,6 @@ async def invoke_risk_guardian(
     profile: RiskProfile
 ) -> RiskAssessment:
     """Invoke risk-guardian skill."""
-    from skills.risk_guardian import assess_risk
     return await assess_risk(vault_address, current, macro, vault_tvl_usd, history, profile)
 
 async def invoke_reporting_scribe(
@@ -163,7 +168,6 @@ async def invoke_reporting_scribe(
     pnl_delta_bps: int
 ) -> ScribeResult:
     """Invoke reporting-scribe skill."""
-    from skills.reporting_scribe import write_record
     return await write_record(
         vault_address, decision_id, macro, previous, target,
         reasoning, tx_hashes, risk_assessment, trigger, pnl_delta_bps
@@ -232,6 +236,10 @@ async def run_pipeline(vault_address: str):
     """
     Main agent loop. Runs indefinitely, executing one cycle every CYCLE_INTERVAL_SECONDS.
     """
+    from core.benchmark_calculator import BenchmarkCalculator
+    from web3 import Web3
+    from eth_account import Account
+
     log.info(f"Mosaic Pipeline starting for vault {vault_address}")
     log.info(f"Cycle interval: {CYCLE_INTERVAL_SECONDS}s ({CYCLE_INTERVAL_SECONDS // 60}m)")
 
@@ -239,6 +247,37 @@ async def run_pipeline(vault_address: str):
     previous_macro:    Optional[MacroSignal]  = None
     last_rebalance_ts: Optional[int]          = None
     decision_counter:  int                    = 0
+
+    # ── Benchmark tracking state (Module C) ──────────────────────────────────
+    benchmark_calc:    Optional[BenchmarkCalculator] = None
+    initial_tvl_usd:   Optional[float]              = None
+
+    # BenchmarkTracker ABI (minimal)
+    BENCHMARK_TRACKER_ABI = [
+        {
+            "name": "recordSnapshot",
+            "type": "function",
+            "inputs": [
+                {"name": "vault",           "type": "address"},
+                {"name": "vaultNAVBps",     "type": "uint256"},
+                {"name": "benchmarkNAVBps", "type": "uint256"},
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable",
+        }
+    ]
+
+    benchmark_tracker_addr = os.environ.get("BENCHMARK_TRACKER_ADDRESS", "")
+    w3_bench = None
+    benchmark_tracker = None
+    if benchmark_tracker_addr and benchmark_tracker_addr != "0x0":
+        try:
+            w3_bench = Web3(Web3.HTTPProvider(os.environ["MANTLE_RPC_URL"]))
+            benchmark_tracker = w3_bench.eth.contract(
+                address=benchmark_tracker_addr, abi=BENCHMARK_TRACKER_ABI
+            )
+        except Exception as e:
+            log.warning(f"BenchmarkTracker init failed: {e}")
 
     while True:
         cycle_start = time.time()
@@ -323,12 +362,64 @@ async def run_pipeline(vault_address: str):
                 f"chain_tx={scribe.tx_hash}"
             )
 
+            # ── Step 8: Record benchmark comparison (Module C) ──────────────
+            try:
+                current_tvl = tvl_usd  # from fetch_vault_state
+
+                # Initialize benchmark calculator (first cycle)
+                if benchmark_calc is None and current_tvl > 0:
+                    initial_tvl_usd = current_tvl
+                    initial_prices  = {
+                        "usdy_nav":        1.0,
+                        "spy_price":       macro.equity_prices.get("SPY", 542.0),
+                        "meth_eth_ratio":  1.042,  # read actual value from contract
+                    }
+                    benchmark_calc = BenchmarkCalculator(profile.risk_level, initial_prices)
+                    log.info("Benchmark calculator initialized.")
+
+                if benchmark_calc and initial_tvl_usd and benchmark_tracker and w3_bench:
+                    current_prices = {
+                        "usdy_nav":       1.0 + macro.usdy_yield / 100 / 52,  # weekly yield approx
+                        "spy_price":      macro.equity_prices.get("SPY", 542.0),
+                        "meth_eth_ratio": 1.042 + macro.meth_apy / 100 / 52,
+                    }
+
+                    benchmark_nav_bps = benchmark_calc.compute_nav_bps(current_prices)
+                    vault_nav_bps     = benchmark_calc.compute_vault_nav_bps(
+                        initial_tvl_usd, current_tvl
+                    )
+
+                    # Write to BenchmarkTracker contract
+                    account_bench = Account.from_key(os.environ["AGENT_PRIVATE_KEY"])
+                    nonce = w3_bench.eth.get_transaction_count(account_bench.address)
+                    tx = benchmark_tracker.functions.recordSnapshot(
+                        vault_address,
+                        vault_nav_bps,
+                        benchmark_nav_bps,
+                    ).build_transaction({
+                        "from":    account_bench.address,
+                        "nonce":   nonce,
+                        "gas":     100_000,
+                        "chainId": w3_bench.eth.chain_id,
+                    })
+                    signed = account_bench.sign_transaction(tx)
+                    w3_bench.eth.send_raw_transaction(signed.raw_transaction)
+
+                    alpha_bps = vault_nav_bps - benchmark_nav_bps
+                    log.info(
+                        f"Benchmark: vault={vault_nav_bps}bps, "
+                        f"benchmark={benchmark_nav_bps}bps, "
+                        f"alpha={alpha_bps:+d}bps ({alpha_bps/100:+.2f}%)"
+                    )
+            except Exception as e:
+                log.warning(f"Benchmark recording failed (non-critical): {e}")
+
             # ── Update state ──────────────────────────────────────────────────
             previous_macro    = macro
             last_rebalance_ts = int(time.time())
 
             log.info(
-                f"✓ Cycle {decision_counter} complete. "
+                f"Cycle {decision_counter} complete. "
                 f"Vault: {vault_address[:10]}... | "
                 f"Record #{decision_counter}"
             )

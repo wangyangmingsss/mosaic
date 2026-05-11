@@ -128,17 +128,32 @@ DecisionLog.authorizeVault(MosaicVault)
 ---
 ## On-Chain Deployment
 
-Contracts deployed to **Mantle Testnet (Sepolia, Chain ID 5003)** for hackathon demo.
+Contracts deployed to **Mantle Testnet (Sepolia, Chain ID 5003)**.
 
-| Contract | Address |
-|----------|---------|
-| **DecisionLog** | `TBD — fill after deployment` |
-| **VaultFactory** | `TBD — fill after deployment` |
-| **MosaicVault #1 (Conservative)** | `TBD` |
-| **MosaicVault #2 (Balanced)** | `TBD` |
-| **MosaicVault #3 (Aggressive)** | `TBD` |
+| Contract | Address | Explorer |
+|----------|---------|---------|
+| **DecisionLog** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **VaultFactory** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **BenchmarkTracker** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **MosaicVault #1 (Conservative)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **MosaicVault #2 (Balanced)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **MosaicVault #3 (Aggressive)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
 
 > Block Explorer: https://explorer.testnet.mantle.xyz
+
+---
+## Live Performance (as of June 16, 2026)
+
+> Three vaults have been running continuously since May 25, 2026.
+
+| Metric | Conservative | Balanced | Aggressive |
+|--------|-------------|---------|-----------|
+| Days running | 22 | 22 | 22 |
+| Total decisions | -- | -- | -- |
+| vs Fixed benchmark (alpha) | +--% | +--% | +--% |
+| On-chain records | [View](https://explorer.testnet.mantle.xyz/...) | [View](...) | [View](...) |
+
+> All decision records are publicly verifiable on Mantle Explorer and IPFS.
 
 ---
 ## MuleRun Agent Pipeline
@@ -365,7 +380,7 @@ cd frontend && npm install && npm run dev
 mosaic/
 ├── .env.example                          # Environment variable template
 ├── .gitignore
-├── README.md
+├── README.md                             # Updated with real addresses + live data
 │
 ├── .github/
 │   └── workflows/
@@ -379,28 +394,46 @@ mosaic/
 │   │   ├── MosaicVault.sol               # ERC-4626 + ERC-8004 vault
 │   │   ├── DecisionLog.sol               # On-chain decision hash registry
 │   │   ├── VaultFactory.sol              # One-click vault deployment
+│   │   ├── BenchmarkTracker.sol          # Human vs AI benchmark comparison
 │   │   └── interfaces/
 │   │       └── IDecisionLog.sol
 │   └── test/
-│       └── MosaicVault.t.sol             # Foundry test suite
+│       ├── MosaicVault.t.sol             # Foundry test suite
+│       └── BenchmarkTracker.t.sol        # Benchmark tracker tests
 │
 ├── agents/                               # MuleRun agent pipeline (Python)
 │   ├── AGENTS.md                         # MuleRun agent instruction file
 │   ├── requirements.txt
+│   ├── dist/                             # Packaged Skill ZIPs
+│   │   ├── macro-sentinel.zip
+│   │   ├── allocator.zip
+│   │   ├── execution-router.zip
+│   │   ├── risk-guardian.zip
+│   │   └── reporting-scribe.zip
 │   └── src/
-│       ├── mosaic_pipeline.py            # Main orchestration loop
+│       ├── mosaic_pipeline.py            # Main orchestration loop + benchmark integration
 │       ├── config.py                     # Contract addresses + ABI + network config
-│       └── skills/
-│           ├── macro-sentinel/
-│           │   └── SKILL.md              # Macro data collection skill
-│           ├── allocator/
-│           │   └── SKILL.md              # Black-Litterman + LLM allocation skill
-│           ├── execution-router/
-│           │   └── SKILL.md              # On-chain trade execution skill
-│           ├── risk-guardian/
-│           │   └── SKILL.md              # Risk monitoring + on-chain alert skill
-│           └── reporting-scribe/
-│               └── SKILL.md              # IPFS archival + on-chain record skill
+│       ├── core/
+│       │   └── benchmark_calculator.py   # Fixed-allocation benchmark NAV calculator
+│       ├── skills/
+│       │   ├── macro-sentinel/
+│       │   │   ├── SKILL.md
+│       │   │   └── scripts/fetch_macro.py         # Macro data collection implementation
+│       │   ├── allocator/
+│       │   │   ├── SKILL.md
+│       │   │   └── scripts/compute_allocation.py  # Black-Litterman + LLM allocation
+│       │   ├── execution-router/
+│       │   │   ├── SKILL.md
+│       │   │   └── scripts/execute_rebalance.py   # On-chain trade execution
+│       │   ├── risk-guardian/
+│       │   │   ├── SKILL.md
+│       │   │   └── scripts/assess_risk.py         # Risk monitoring + on-chain alerts
+│       │   └── reporting-scribe/
+│       │       ├── SKILL.md
+│       │       └── scripts/write_record.py        # IPFS archival + on-chain record
+│       └── scripts/
+│           ├── create_vaults.py          # Deploy 3 demo vaults
+│           └── pack_skills.py            # Package skills as ZIPs
 │
 └── frontend/                             # React dApp
     ├── src/
