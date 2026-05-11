@@ -103,6 +103,16 @@ VAULT_ABI = [
         {"name": "cumulativePnLBps",   "type": "int256"},
         {"name": "metadataURI",        "type": "string"},
     ], "stateMutability": "view"},
+
+    # Events
+    {"name": "AgentRebalanced", "type": "event", "inputs": [
+        {"name": "decisionId", "type": "uint256", "indexed": True},
+        {"name": "recordHash", "type": "bytes32",  "indexed": False},
+    ]},
+    {"name": "RiskAlertFired", "type": "event", "inputs": [
+        {"name": "alertLevel", "type": "uint8",   "indexed": False},
+        {"name": "reason",     "type": "string",  "indexed": False},
+    ]},
 ]
 
 # ── Pyth price feed IDs for Mantle xStocks ────────────────────────────────────
