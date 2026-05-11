@@ -8,10 +8,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-import anthropic
+from openai import OpenAI
 
-# Anthropic SDK (install via pip install anthropic)
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+# DeepSeek V4 API (OpenAI-compatible)
+client = OpenAI(
+    api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
+    base_url="https://api.deepseek.com",
+)
 
 BASE_ALLOCATIONS = {
     1: {"usdy_bps": 5000, "xstocks_bps": 1500, "meth_bps": 2000, "fbtc_bps":  500, "usdc_bps": 1000},
@@ -126,14 +129,14 @@ async def compute_allocation(
             if last_error and attempt > 0:
                 full_prompt += f"\n\nPREVIOUS ATTEMPT FAILED WITH: {last_error}\nPlease fix and ensure all weights sum to exactly 10000."
 
-            message = client.messages.create(
-                model      = "claude-sonnet-4-20250514",
-                max_tokens = 400,
+            response = client.chat.completions.create(
+                model       = "deepseek-chat",
+                max_tokens  = 400,
                 temperature = 0.1,
-                messages   = [{"role": "user", "content": full_prompt}],
+                messages    = [{"role": "user", "content": full_prompt}],
             )
 
-            raw = message.content[0].text.strip()
+            raw = response.choices[0].message.content.strip()
 
             # Clean markdown fences (just in case)
             raw = re.sub(r"```(?:json)?", "", raw).strip()

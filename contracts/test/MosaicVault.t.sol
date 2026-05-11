@@ -14,7 +14,7 @@ contract MockUSDC is ERC20 {
 
 contract MosaicVaultTest is Test {
     MockUSDC     usdc;
-    DecisionLog  log;
+    DecisionLog  decLog;
     MosaicVault  vault;
 
     address owner = address(0xA11CE);
@@ -31,16 +31,16 @@ contract MosaicVaultTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         usdc  = new MockUSDC();
-        log   = new DecisionLog();
+        decLog = new DecisionLog();
         vault = new MosaicVault(
             IERC20(address(usdc)),
             "Mosaic Vault #1",
             "msV1",
             profile,
             agent,
-            address(log)
+            address(decLog)
         );
-        log.authorizeVault(address(vault));
+        decLog.authorizeVault(address(vault));
         vm.stopPrank();
 
         // Fund user
@@ -78,11 +78,13 @@ contract MosaicVaultTest is Test {
         vm.prank(agent);
         vault.recordDecision(hash, newAlloc, 50);
 
-        assertEq(vault.agentIdentity().totalDecisions, 1);
-        assertEq(vault.agentIdentity().successfulRebalances, 1);
-        assertEq(vault.agentIdentity().cumulativePnLBps, 50);
-        assertEq(vault.currentAllocation().usdyBps, 4000);
-        assertEq(log.getTotalDecisions(address(vault)), 1);
+        MosaicVault.AgentIdentity memory id = vault.getAgentIdentity();
+        assertEq(id.totalDecisions, 1);
+        assertEq(id.successfulRebalances, 1);
+        assertEq(id.cumulativePnLBps, 50);
+        MosaicVault.Allocation memory a = vault.getAllocation();
+        assertEq(a.usdyBps, 4000);
+        assertEq(decLog.getTotalDecisions(address(vault)), 1);
     }
 
     function test_record_decision_rejects_invalid_allocation() public {
@@ -132,7 +134,8 @@ contract MosaicVaultTest is Test {
         string memory uri = "ipfs://QmTest123";
         vm.prank(agent);
         vault.updateMetadataURI(uri);
-        assertEq(vault.agentIdentity().metadataURI, uri);
+        MosaicVault.AgentIdentity memory id = vault.getAgentIdentity();
+        assertEq(id.metadataURI, uri);
     }
 
     // ── Duplicate record hash ────────────────────────────────────────────────

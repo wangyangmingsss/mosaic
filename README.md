@@ -128,18 +128,18 @@ DecisionLog.authorizeVault(MosaicVault)
 ---
 ## On-Chain Deployment
 
-Contracts deployed to **Mantle Testnet (Sepolia, Chain ID 5003)**.
+Contracts deployed to **Mantle Mainnet (Chain ID 5000)**.
 
 | Contract | Address | Explorer |
 |----------|---------|---------|
-| **DecisionLog** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
-| **VaultFactory** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
-| **BenchmarkTracker** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
-| **MosaicVault #1 (Conservative)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
-| **MosaicVault #2 (Balanced)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
-| **MosaicVault #3 (Aggressive)** | `0x<REAL_ADDRESS>` | [View](https://explorer.testnet.mantle.xyz/address/0x<REAL_ADDRESS>) |
+| **DecisionLog** | `0x035a459893EC171615B2Fd747d3EDd1eB0A5526D` | [View](https://explorer.mantle.xyz/address/0x035a459893EC171615B2Fd747d3EDd1eB0A5526D) |
+| **VaultFactory** | `0xCc0c3F76A8eF1E31B8e7BE83BB4EFcF60Ea1C79A` | [View](https://explorer.mantle.xyz/address/0xCc0c3F76A8eF1E31B8e7BE83BB4EFcF60Ea1C79A) |
+| **BenchmarkTracker** | `0xa7E9bF736af06E6E6eFe5E0cA86e7c67BD6A7d57` | [View](https://explorer.mantle.xyz/address/0xa7E9bF736af06E6E6eFe5E0cA86e7c67BD6A7d57) |
+| **MosaicVault #1 (Conservative)** | `0x075849a9Ce4b977B14462068774526f890EF56C4` | [View](https://explorer.mantle.xyz/address/0x075849a9Ce4b977B14462068774526f890EF56C4) |
+| **MosaicVault #2 (Balanced)** | `0x51774634376596957Ef63F4560F05e08c7fc4779` | [View](https://explorer.mantle.xyz/address/0x51774634376596957Ef63F4560F05e08c7fc4779) |
+| **MosaicVault #3 (Aggressive)** | `0xF0b19b1577E614CCB813F5800AA49Eb9b763B234` | [View](https://explorer.mantle.xyz/address/0xF0b19b1577E614CCB813F5800AA49Eb9b763B234) |
 
-> Block Explorer: https://explorer.testnet.mantle.xyz
+> Block Explorer: https://explorer.mantle.xyz
 
 ---
 ## Live Performance (as of June 16, 2026)
