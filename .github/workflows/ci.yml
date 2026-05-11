@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Solidity ────────────────────────────────────────────────────────────────
+  contracts:
+    name: Contracts (Foundry)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install OZ dependencies
+        working-directory: contracts
+        run: |
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
+
+      - name: Build contracts
+        working-directory: contracts
+        run: forge build --sizes
+
+      - name: Run contract tests
+        working-directory: contracts
+        run: forge test -vvv --gas-report
+
+      - name: Check contract formatting
+        working-directory: contracts
+        run: forge fmt --check
+
+  # ── Python agent pipeline ───────────────────────────────────────────────────
+  agents:
+    name: Agent Pipeline (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        working-directory: agents
+        run: pip install -r requirements.txt
+
+      - name: Lint with ruff
+        working-directory: agents
+        run: ruff check src/
+
+      - name: Format check with black
+        working-directory: agents
+        run: black --check src/
+
+      - name: Run agent tests
+        working-directory: agents
+        run: pytest tests/ -v --tb=short
+        env:
+          # Use dummy values for CI — tests mock all external calls
+          MANTLE_RPC_URL:       "https://rpc.mantle.xyz"
+          AGENT_PRIVATE_KEY:    "0x0000000000000000000000000000000000000000000000000000000000000001"
+          AGENT_EOA:            "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+          BYBIT_API_KEY:        "ci_dummy"
+          BYBIT_SECRET:         "ci_dummy"
+          PINATA_JWT:           "ci_dummy"
+          ANTHROPIC_API_KEY:    "sk-ant-ci_dummy"
+          DECISION_LOG_ADDRESS: "0x0000000000000000000000000000000000000001"
+          VAULT_FACTORY_ADDRESS:"0x0000000000000000000000000000000000000002"
+          DRY_RUN:              "true"
