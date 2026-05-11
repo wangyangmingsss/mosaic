@@ -4,7 +4,7 @@
 Monitors active RWA portfolio positions for risk breaches and fires on-chain alerts. Use before executing any rebalance and in every cycle to scan for emerging risks. Triggers on: "check risk", "monitor portfolio", "risk assessment", "portfolio health check".
 
 ## What This Skill Does
-Evaluates four risk dimensions — concentration, drawdown, liquidity, and macro stress — and returns an alert level 0–3. Level 3 calls vault.fireRiskAlert() which pauses all deposits.
+Evaluates five risk dimensions — concentration, drawdown, liquidity, macro stress, and restaking risk — and returns an alert level 0-3. Level 3 calls vault.fireRiskAlert() which pauses all deposits.
 
 ## Inputs
 ```
@@ -21,10 +21,11 @@ risk_profile: RiskProfile
 {
   "alert_level": 1,
   "checks": {
-    "concentration": {"ok": true,  "max_weight_bps": 4200, "limit_bps": 6000},
-    "drawdown":      {"ok": true,  "current_dd_bps": 320,  "limit_bps": 1500},
-    "liquidity":     {"ok": true,  "liquid_pct": 87.5},
-    "macro_stress":  {"ok": false, "risk_score": 18, "threshold": 20}
+    "concentration":   {"ok": true,  "max_weight_bps": 4200, "limit_bps": 6000},
+    "drawdown":        {"ok": true,  "current_dd_bps": 320,  "limit_bps": 1500},
+    "liquidity":       {"ok": true,  "liquid_pct": 87.5},
+    "macro_stress":    {"ok": false, "risk_score": 18, "threshold": 20},
+    "restaking_risk":  {"ok": true,  "restaking_premium_bps": 165, "min_threshold_bps": 50}
   },
   "reasons": ["Macro risk score critically low (18 < threshold 20)"],
   "action_taken": "none"
@@ -44,8 +45,8 @@ risk_profile: RiskProfile
 ### Step 1 — Concentration check
 ```python
 def check_concentration(alloc: dict, limit_bps: int) -> dict:
-    max_weight = max(alloc["usdy_bps"], alloc["xstocks_bps"],
-                     alloc["meth_bps"], alloc["fbtc_bps"])
+    max_weight = max(alloc["usdy_bps"], alloc["meth_bps"],
+                     alloc["cmeth_bps"], alloc["fbtc_bps"])
     ok = max_weight <= limit_bps
     level = 0 if ok else (2 if max_weight > limit_bps * 1.1 else 1)
     return {"ok": ok, "max_weight_bps": max_weight, "limit_bps": limit_bps, "alert": level}
@@ -67,8 +68,8 @@ def check_drawdown(history: list, limit_bps: int) -> dict:
 ### Step 3 — Liquidity check
 ```python
 def check_liquidity(alloc: dict, tvl: float) -> dict:
-    # USDC and USDY are fully liquid; mETH has 7-day unstake delay; fBTC has 2-day
-    liquid_bps = alloc["usdc_bps"] + alloc["usdy_bps"] + alloc["xstocks_bps"] * 0.9
+    # USDC and USDY are fully liquid; mETH/cmETH have DEX liquidity constraints; fBTC has 2-day
+    liquid_bps = alloc["usdc_bps"] + alloc["usdy_bps"] + alloc["meth_bps"] * 0.8 + alloc["cmeth_bps"] * 0.7
     liquid_pct = liquid_bps / 100
     ok = liquid_pct >= 25.0  # at least 25% liquid at all times
     level = 0 if ok else (2 if liquid_pct >= 15.0 else 3)
@@ -84,17 +85,45 @@ def check_macro_stress(macro: dict) -> dict:
     return {"ok": ok, "risk_score": risk_score, "threshold": 20, "alert": level}
 ```
 
-### Step 5 — Aggregate to final alert level
+### Step 5 — Restaking risk check
+```python
+def check_restaking_risk(macro: dict, alloc: dict) -> dict:
+    """
+    Validates that cmETH exposure is justified by sufficient restaking premium.
+    If premium is too low but cmETH weight is non-zero, flag a risk alert.
+    """
+    restaking_premium = macro["restaking_premium_bps"]
+    cmeth_weight = alloc["cmeth_bps"]
+    min_threshold_bps = 50  # minimum acceptable premium
+
+    # Risk only applies if we hold cmETH
+    if cmeth_weight == 0:
+        return {"ok": True, "restaking_premium_bps": restaking_premium,
+                "min_threshold_bps": min_threshold_bps, "alert": 0}
+
+    ok = restaking_premium >= min_threshold_bps
+    if not ok:
+        # Premium too low for the risk we are taking
+        level = 2 if restaking_premium >= 25 else 3
+    else:
+        level = 0
+
+    return {"ok": ok, "restaking_premium_bps": restaking_premium,
+            "min_threshold_bps": min_threshold_bps, "alert": level}
+```
+
+### Step 6 — Aggregate to final alert level
 ```python
 final_level = max(
     concentration_result["alert"],
     drawdown_result["alert"],
     liquidity_result["alert"],
-    macro_result["alert"]
+    macro_result["alert"],
+    restaking_result["alert"]
 )
 ```
 
-### Step 6 — Fire on-chain alert if level >= 2
+### Step 7 — Fire on-chain alert if level >= 2
 ```python
 if final_level >= 2:
     reasons = [r for r in all_reason_strings if r]
@@ -113,6 +142,7 @@ if final_level >= 2:
 
 ## Error Handling
 - If history data is missing: skip drawdown check, log warning, continue
+- If restaking premium data is unavailable: assume premium = 0, flag level-2 alert for cmETH holders
 - If on-chain alert tx fails: log error, still return the RiskAssessment — caller must handle
 - Never block the pipeline — if this skill itself throws, return level=0 with error flag
 

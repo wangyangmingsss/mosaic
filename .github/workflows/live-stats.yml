@@ -1,0 +1,27 @@
+name: Update Live Stats
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install web3
+
+      - run: python scripts/update_readme_stats.py
+        env:
+          MANTLE_RPC: https://rpc.mantle.xyz
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update live stats"
+          file_pattern: README.md

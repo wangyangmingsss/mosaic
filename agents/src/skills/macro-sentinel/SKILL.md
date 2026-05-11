@@ -4,11 +4,11 @@
 Fetches multi-source macro data for Mantle RWA portfolio management and computes a risk score. Use when you need to assess current market conditions before making portfolio allocation decisions. Triggers on: "get macro signal", "fetch market data", "check risk score", "market conditions".
 
 ## What This Skill Does
-Aggregates four data streams — Pyth Network equity prices, Chainlink yield oracles, Mantle on-chain mETH APY, and Bybit BTC funding rate — into a single MacroSignal JSON object with a 0–100 risk score (higher = more risk-on).
+Aggregates data streams — USDY oracle pricing and yield data, Mantle on-chain mETH/cmETH APY, and Bybit BTC funding rate — into a single MacroSignal JSON object with a 0-100 risk score (higher = more risk-on). Computes the restaking risk premium between cmETH and mETH and checks vault USDY allowlist status.
 
 ## Inputs
 ```
-vault_address: string      # Which vault to query (for Mantle LSP APY)
+vault_address: string      # Which vault to query (for Mantle LSP APY and allowlist check)
 previous_risk_score: int   # Previous cycle's risk score (for delta calculation)
 ```
 
@@ -16,14 +16,14 @@ previous_risk_score: int   # Previous cycle's risk score (for delta calculation)
 ```json
 {
   "risk_score": 58,
-  "equity_momentum": "neutral",
-  "meth_apy": 4.2,
-  "usdy_yield": 4.85,
+  "meth_apy_7d": 4.20,
+  "cmeth_apy_7d": 5.85,
+  "restaking_premium_bps": 165,
+  "usdy_oracle_price": 1.0512,
+  "usdy_apy_30d": 4.85,
+  "usdy_apy_7d": 4.72,
   "btc_funding_rate": 0.0003,
-  "equity_prices": {
-    "TSLAx": 248.50, "NVDAx": 118.30,
-    "AAPLx": 195.20, "SPYx": 542.80, "QQQx": 465.10
-  },
+  "vault_on_usdy_allowlist": true,
   "timestamp": 1747012800,
   "data_freshness_ok": true
 }
@@ -31,84 +31,100 @@ previous_risk_score: int   # Previous cycle's risk score (for delta calculation)
 
 ## Step-by-Step Instructions
 
-### Step 1 — Fetch equity prices from Pyth Network
-```python
-import httpx, time
-
-PYTH_ENDPOINT = "https://hermes.pyth.network/v2/updates/price/latest"
-PRICE_IDS = {
-    "TSLAx": "0x...",  # See references/pyth_price_ids.json for Mantle-specific IDs
-    "NVDAx": "0x...",
-    "AAPLx": "0x...",
-    "SPYx":  "0x...",
-    "QQQx":  "0x..."
-}
-
-resp = httpx.get(PYTH_ENDPOINT, params={"ids[]": list(PRICE_IDS.values())})
-prices = {sym: parse_pyth_price(resp.json(), pid) for sym, pid in PRICE_IDS.items()}
-```
-
-### Step 2 — Fetch mETH APY from Mantle LSP
+### Step 1 — Fetch mETH APY from Mantle LSP
 ```python
 from web3 import Web3
 
 w3 = Web3(Web3.HTTPProvider(os.environ["MANTLE_RPC_URL"]))
 lsp = w3.eth.contract(address=MANTLE_LSP_ADDRESS, abi=LSP_ABI)
-meth_apy = lsp.functions.getStakingAPY().call() / 1e18 * 100  # in percent
+meth_apy_7d = lsp.functions.getStakingAPY().call() / 1e18 * 100  # in percent
 ```
 
-### Step 3 — Fetch USDY yield from Ondo oracle
+### Step 2 — Fetch cmETH APY from Mantle restaking contract
 ```python
-usdy_contract = w3.eth.contract(address=USDY_ORACLE_ADDRESS, abi=USDY_ABI)
-usdy_yield = usdy_contract.functions.getCurrentYield().call() / 1e18 * 100
+cmeth_contract = w3.eth.contract(address=CMETH_ADDRESS, abi=CMETH_ABI)
+cmeth_apy_7d = cmeth_contract.functions.getRestakingAPY().call() / 1e18 * 100  # in percent
 ```
 
-### Step 4 — Fetch BTC funding rate from Bybit
+### Step 3 — Compute restaking risk premium
 ```python
-import hmac, hashlib, time, base64
+restaking_premium_bps = int((cmeth_apy_7d - meth_apy_7d) * 100)  # APY difference in bps
+```
+
+### Step 4 — Fetch USDY oracle price and yield data
+```python
+usdy_oracle = w3.eth.contract(address=USDY_ORACLE_ADDRESS, abi=USDY_ABI)
+usdy_oracle_price = usdy_oracle.functions.getPrice().call() / 1e18
+usdy_apy_30d = usdy_oracle.functions.getTrailingAPY(30).call() / 1e18 * 100
+usdy_apy_7d  = usdy_oracle.functions.getTrailingAPY(7).call() / 1e18 * 100
+```
+
+### Step 5 — Check vault USDY allowlist status
+```python
+usdy_token = w3.eth.contract(address=USDY_TOKEN_ADDRESS, abi=USDY_TOKEN_ABI)
+vault_on_usdy_allowlist = usdy_token.functions.isAllowed(vault_address).call()
+```
+
+### Step 6 — Fetch BTC funding rate from Bybit
+```python
+import hmac, hashlib, time
+
+BYBIT_API_KEY = "SxjEUjNshid1ccJsbi"
+BYBIT_SECRET  = "DNxladcKZ4E5N4K0zMj1ofVWQV4Iirtew4r7"
 
 timestamp = str(int(time.time() * 1000))
-sign_str  = timestamp + "GET" + "/v5/market/funding/history?category=linear&symbol=BTCUSDT&limit=1"
-signature = base64.b64encode(hmac.new(os.environ["BYBIT_SECRET"].encode(), sign_str.encode(), hashlib.sha256).digest()).decode()
+recv_window = "5000"
+params = "category=linear&symbol=BTCUSDT&limit=1"
+sign_str = timestamp + BYBIT_API_KEY + recv_window + params
+signature = hmac.new(BYBIT_SECRET.encode(), sign_str.encode(), hashlib.sha256).hexdigest()
 
 headers = {
-    "X-BAPI-API-KEY":   os.environ["BYBIT_API_KEY"],
-    "X-BAPI-TIMESTAMP": timestamp,
-    "X-BAPI-SIGN":      signature,
+    "X-BAPI-API-KEY":     BYBIT_API_KEY,
+    "X-BAPI-TIMESTAMP":   timestamp,
+    "X-BAPI-RECV-WINDOW": recv_window,
+    "X-BAPI-SIGN":        signature,
 }
-resp = httpx.get("https://api.bybit.com/v5/market/funding/history", params=..., headers=headers)
+resp = httpx.get(
+    "https://api.bybit.com/v5/market/funding/history",
+    params={"category": "linear", "symbol": "BTCUSDT", "limit": "1"},
+    headers=headers
+)
 btc_funding = float(resp.json()["result"]["list"][0]["fundingRate"])
 ```
 
-### Step 5 — Compute risk score
+### Step 7 — Compute risk score
 ```python
-def compute_risk_score(equity_prices, meth_apy, btc_funding) -> int:
-    # Compute 24h equity momentum
-    avg_change = mean([p["change_24h_pct"] for p in equity_prices.values()])
-    equity_momentum = "bullish" if avg_change > 1.0 else "bearish" if avg_change < -1.0 else "neutral"
-
+def compute_risk_score(meth_apy_7d, cmeth_apy_7d, restaking_premium_bps, btc_funding) -> int:
     score = 50  # neutral baseline
-    if equity_momentum == "bullish":  score += 20
-    if equity_momentum == "bearish":  score -= 20
-    if meth_apy > 5.0:               score += 10
-    if btc_funding >  0.02:          score += 10   # market overheating
-    if btc_funding < -0.01:          score -= 15   # fear signal
+
+    # Staking yield signal
+    if meth_apy_7d > 5.0:               score += 10
+    if cmeth_apy_7d > 7.0:              score += 5
+
+    # Restaking premium health
+    if restaking_premium_bps > 150:      score += 5   # healthy premium
+    if restaking_premium_bps < 50:       score -= 10  # risk not compensated
+
+    # BTC funding rate signal
+    if btc_funding > 0.02:               score += 10  # market overheating
+    if btc_funding < -0.01:              score -= 15  # fear signal
+
     return max(0, min(100, score))
 ```
 
-### Step 6 — Check data freshness
-If any price timestamp is more than 60 seconds old, set `data_freshness_ok = false` and fall back to cached values from the previous cycle.
+### Step 8 — Check data freshness
+If any on-chain call timestamp is more than 60 seconds old, set `data_freshness_ok = false` and fall back to cached values from the previous cycle.
 
-### Step 7 — Return MacroSignal
+### Step 9 — Return MacroSignal
 Assemble and return the MacroSignal JSON object.
 
 ## Error Handling
-- If Pyth returns 4xx/5xx: use last known equity prices, mark `data_freshness_ok = false`
-- If Mantle RPC times out: use last known mETH APY from in-memory cache
-- If Bybit API key missing: set btc_funding_rate = 0.0 (neutral signal)
+- If Mantle RPC times out: use last known mETH/cmETH APY from in-memory cache
+- If USDY oracle returns stale price: use last known values, mark `data_freshness_ok = false`
+- If Bybit API key fails: set btc_funding_rate = 0.0 (neutral signal)
 - Never throw — always return a MacroSignal, even with stale data
 
 ## References
-- `references/pyth_price_ids.json` — Pyth price feed IDs for Mantle xStocks
-- `references/contract_addresses.json` — Mantle LSP, USDY oracle addresses
+- `references/contract_addresses.json` — Mantle LSP, cmETH, USDY oracle, USDY token addresses
 - `references/bybit_api.md` — Bybit v5 API authentication guide
+- `references/cmeth_abi.json` — cmETH restaking contract ABI

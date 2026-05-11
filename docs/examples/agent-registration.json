@@ -1,0 +1,82 @@
+{
+  "schema": "ERC-8004",
+  "version": "2.0",
+  "agent": {
+    "name": "Mosaic RWA Portfolio Agent",
+    "model_declaration": "mulerun-mosaic-v2",
+    "registry_address": "0xD2074e8CDdB710a9E9C17c1B0a4c4fF694B6bf95",
+    "chain_id": 5000,
+    "created_at": "2026-05-01T00:00:00Z",
+    "owner": "0xAgentOwnerAddress",
+    "operator": "0xAgentOperatorEOA"
+  },
+  "identity": {
+    "identity_registry": "0xD2074e8CDdB710a9E9C17c1B0a4c4fF694B6bf95",
+    "reputation_registry": "0xCf8AccC55a636131CaBa585Cf3B23e1c0f231fE9",
+    "validation_registry": "0x09e402674c521f9293e7428A0FE8C3FCc8f93a0d",
+    "token_id": 1,
+    "metadata_uri": "ipfs://QmExampleCIDForAgentMetadata"
+  },
+  "capabilities": [
+    "macro_signal_analysis",
+    "portfolio_allocation",
+    "trade_execution",
+    "risk_monitoring",
+    "decision_reporting"
+  ],
+  "strategy": {
+    "risk_level": 2,
+    "rebalance_frequency_minutes": 15,
+    "supported_assets": ["USDY", "mETH", "cmETH", "fBTC", "USDC"],
+    "max_single_asset_bps": 6000,
+    "max_drawdown_bps": 1500
+  },
+  "adapters": {
+    "usdy": {
+      "address": "0x8978644428D4283fEb53ffe250a59F6a8CE5C9A0",
+      "oracle": "RWADynamicOracle",
+      "compliance": "three_layer_allowlist"
+    },
+    "meth": {
+      "address": "0xcAae1dBf111aF26655A4f40eaC4792978d3249c8",
+      "protocol": "Mantle LSP",
+      "type": "liquid_staking"
+    },
+    "cmeth": {
+      "address": "0x66894e0ff472A1C7B36c5175EfE300Ca1cCC6643",
+      "protocol": "Mantle Restaking",
+      "type": "restaking_derivative"
+    },
+    "fbtc": {
+      "address": "0x3AF5c3D7E64Fc07C2affBA9a09D9DcFbF8a4650D",
+      "protocol": "Function",
+      "type": "btc_yield"
+    }
+  },
+  "vault_bindings": [
+    {
+      "label": "Conservative V2",
+      "address": "0xF3Df82262522307C6442137F24dA6710B182AE8b",
+      "risk_level": 1
+    },
+    {
+      "label": "Balanced V2",
+      "address": "0x424593f6E19d02B862a2cb2ec82Cf1A3de3d54bA",
+      "risk_level": 2
+    },
+    {
+      "label": "Aggressive V2",
+      "address": "0x542d2C1C1F7ca2fe54ec6A0F2139Fda069EC5625",
+      "risk_level": 3
+    }
+  ],
+  "decision_log": {
+    "contract": "0xB123cE88e8b1b8de606574BbA99b655D0D456994",
+    "ipfs_gateway": "https://gateway.pinata.cloud/ipfs/",
+    "hash_algorithm": "keccak256"
+  },
+  "signatures": {
+    "registration_tx": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "attestation": "pending"
+  }
+}
