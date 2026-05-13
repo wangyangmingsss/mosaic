@@ -10,7 +10,7 @@
 
 MOSAIC deploys USDY Treasury yield and mETH liquid staking as its primary allocation targets, composing them with cmETH restaking derivatives and fBTC Bitcoin yield into a fully automated, compliance-aware portfolio managed by collaborative AI agents on Mantle. The protocol's V2 upgrade introduces protocol adapters, ERC-8004 agent identity registries, and the cmETH restaking risk premium as a core alpha source.
 
-> Demo site: https://mosaic-mantle.mule.page  
+> Demo site: https://f2s3ywkg.mule.page  
 > Web Explorer: https://mosaic-explorer.mule.page  
 > DoraHacks: https://dorahacks.io/hackathon/mantleturingtesthackathon2026
 
